@@ -27,7 +27,8 @@ typedef enum TTag {
   TOpenCall,  /* ktable[key] is rule's key */
   TRule,  /* ktable[key] is rule's key (but key == 0 for unused rules);
              'sib1' is rule's pattern pre-rule; 'sib2' is next rule;
-             extra info 'n' is rule's sequential number */
+             extra info 'n' is rule's sequential number;
+             'cap' is rule status during 'verifyrule' */
   TXInfo,  /* extra info */
   TGrammar,  /* 'sib1' is initial (and first) rule */
   TBehind,  /* 'sib1' is pattern, 'n' is how much to go back */

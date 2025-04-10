@@ -1016,6 +1016,13 @@ static int collectrules (lua_State *L, int arg, int *totalsize) {
 }
 
 
+/* Status of a Rule */
+#define RLNOTVISITED	0	/* rule not visited yet */
+#define RLBEINGVISITED	1	/* rule is being visited */
+#define RLNULL		2	/* rule was visited and is nullable */
+#define RLNONNULL	3	/* rule was visited and is not nullable */
+
+
 static void buildgrammar (lua_State *L, TTree *grammar, int frule, int n) {
   int i;
   TTree *nd = sib1(grammar);  /* auxiliary pointer to traverse the tree */
@@ -1025,6 +1032,7 @@ static void buildgrammar (lua_State *L, TTree *grammar, int frule, int n) {
     TTree *rn = gettree(L, ridx, &rulesize);
     TTree *pr = sib1(nd);  /* points to rule's prerule */
     nd->tag = TRule;
+    nd->cap = RLNOTVISITED;
     nd->key = 0;  /* will be fixed when rule is used */
     pr->tag = TXInfo;
     pr->u.n = i;  /* rule number */
@@ -1060,22 +1068,29 @@ static int checkloops (TTree *tree) {
 }
 
 
+static int verifyrule (lua_State *L, TTree *tree, int nb);
+
 /*
-** Give appropriate error message for 'verifyrule'. If a rule appears
-** twice in 'passed', there is path from it back to itself without
-** advancing the subject.
+** Visiting a rule while verifying another rule
 */
-static int verifyerror (lua_State *L, unsigned short *passed, int npassed) {
-  int i, j;
-  for (i = npassed - 1; i >= 0; i--) {  /* search for a repetition */
-    for (j = i - 1; j >= 0; j--) {
-      if (passed[i] == passed[j]) {
-        lua_rawgeti(L, -1, passed[i]);  /* get rule's key */
-        return luaL_error(L, "rule '%s' may be left recursive", val2str(L, -1));
-      }
+static int ruleentry (lua_State *L, TTree *tree, int nb) {
+  switch (tree->cap) {  /* check rule status */
+    case RLNOTVISITED: {  /* rule not visited yet */
+      int nbr;
+      tree->cap = RLBEINGVISITED;  /* now we will visit it */
+      nbr = verifyrule(L, sib1(tree), 0);
+      tree->cap = nbr ? RLNULL : RLNONNULL;  /* save result */
+      return nbr || nb;
     }
+    case RLBEINGVISITED:  /* visited again while being visited: loop! */
+      lua_rawgeti(L, -1, tree->key);  /* get rule's key */
+      return luaL_error(L, "rule '%s' may be left recursive", val2str(L, -1));
+    case RLNULL:  /* rule already visited; return saved result */
+      return 1;  /* 1 || nb */
+    case RLNONNULL:  /* rule already visited; return saved result */
+      return nb;  /* 0 || nb */
+    default: assert(0); return 0;
   }
-  return luaL_error(L, "too many left calls in grammar");
 }
 
 
@@ -1085,13 +1100,10 @@ static int verifyerror (lua_State *L, unsigned short *passed, int npassed) {
 ** The return value is used to check sequences, where the second pattern
 ** is only relevant if the first is nullable.
 ** Parameter 'nb' works as an accumulator, to allow tail calls in
-** choices. ('nb' true makes function returns true.)
-** Parameter 'passed' is a list of already visited rules, 'npassed'
-** counts the elements in 'passed'.
+** choices. ('nb' true makes function return true.)
 ** Assume ktable at the top of the stack.
 */
-static int verifyrule (lua_State *L, TTree *tree, unsigned short *passed,
-                                     int npassed, int nb) {
+static int verifyrule (lua_State *L, TTree *tree, int nb) {
  tailcall:
   switch (tree->tag) {
     case TChar: case TSet: case TAny:
@@ -1101,45 +1113,41 @@ static int verifyrule (lua_State *L, TTree *tree, unsigned short *passed,
     case TBehind:  /* look-behind cannot have calls */
       return 1;
     case TNot: case TAnd: case TRep:
-      /* return verifyrule(L, sib1(tree), passed, npassed, 1); */
+      /* return verifyrule(L, sib1(tree), 1); */
       tree = sib1(tree); nb = 1; goto tailcall;
     case TCapture: case TRunTime: case TXInfo:
-      /* return verifyrule(L, sib1(tree), passed, npassed, nb); */
+      /* return verifyrule(L, sib1(tree), nb); */
       tree = sib1(tree); goto tailcall;
     case TCall:
-      /* return verifyrule(L, sib2(tree), passed, npassed, nb); */
+      /* return verifyrule(L, sib2(tree), nb); */
       tree = sib2(tree); goto tailcall;
-    case TSeq:  /* only check 2nd child if first is nb */
-      if (!verifyrule(L, sib1(tree), passed, npassed, 0))
+    case TSeq:  /* do not check 2nd child if first is not nullable */
+      if (verifyrule(L, sib1(tree), 0) == 0)
         return nb;
-      /* else return verifyrule(L, sib2(tree), passed, npassed, nb); */
+      /* else return verifyrule(L, sib2(tree), nb); */
       tree = sib2(tree); goto tailcall;
     case TChoice:  /* must check both children */
-      nb = verifyrule(L, sib1(tree), passed, npassed, nb);
-      /* return verifyrule(L, sib2(tree), passed, npassed, nb); */
+      nb = verifyrule(L, sib1(tree), nb);
+      /* return verifyrule(L, sib2(tree), nb); */
       tree = sib2(tree); goto tailcall;
     case TRule:
-      if (npassed >= MAXRULES)  /* too many steps? */
-        return verifyerror(L, passed, npassed);  /* error */
-      else {
-        passed[npassed++] = tree->key;  /* add rule to path */
-        /* return verifyrule(L, sib1(tree), passed, npassed, nb); */
-        tree = sib1(tree); goto tailcall;
-      }
-    case TGrammar:
-      return nullable(tree);  /* sub-grammar cannot be left recursive */
+      return ruleentry(L, tree, nb);
+    case TGrammar:  /* nested grammar */
+      assert(sib1(tree)->tag == TRule);  /* grammar's first rule */
+      /* that rule must have been visited */
+      assert(sib1(tree)->cap == RLNULL || sib1(tree)->cap == RLNONNULL);
+      return (sib1(tree)->cap == RLNULL) ? 1 : nb;
     default: assert(0); return 0;
   }
 }
 
 
 static void verifygrammar (lua_State *L, TTree *grammar) {
-  unsigned short passed[MAXRULES];
   TTree *rule;
   /* check left-recursive rules */
   for (rule = sib1(grammar); rule->tag == TRule; rule = sib2(rule)) {
-    if (rule->key == 0) continue;  /* unused rule */
-    verifyrule(L, sib1(rule), passed, 0, 0);
+    if (rule->key != 0)  /* used rule? */
+      verifyrule(L, rule, 0);
   }
   assert(rule->tag == TTrue);
   /* check infinite loops inside rules */
