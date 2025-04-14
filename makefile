@@ -51,7 +51,7 @@ clean:
 	rm -f $(FILES) lpeg.so
 
 
-lpcap.o: lpcap.c lpcap.h lptypes.h
+lpcap.o: lpcap.c lpcap.h lptypes.h lpprint.h lptree.h lpvm.h
 lpcode.o: lpcode.c lptypes.h lpcode.h lptree.h lpvm.h lpcap.h lpcset.h
 lpcset.o: lpcset.c lptypes.h lpcset.h lpcode.h lptree.h lpvm.h lpcap.h
 lpprint.o: lpprint.c lptypes.h lpprint.h lptree.h lpvm.h lpcap.h lpcode.h

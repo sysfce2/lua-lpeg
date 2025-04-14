@@ -3,10 +3,12 @@
 #include <limits.h>
 #include <stdio.h>
 
+#include "lauxlib.h"
 
 #include "lptypes.h"
 #include "lpprint.h"
 #include "lpcode.h"
+#include "lptree.h"
 
 
 #if defined(LPEG_DEBUG)
@@ -18,7 +20,7 @@
 */
 
 
-void printcharset (const byte *st) {
+static void printcharset (const byte *st) {
   int i;
   printf("[");
   for (i = 0; i <= UCHAR_MAX; i++) {
@@ -137,7 +139,7 @@ void printinst (const Instruction *op, const Instruction *p) {
 }
 
 
-void printpatt (Instruction *p) {
+static void printpatt (Instruction *p) {
   Instruction *op = p;
   uint n = op[-1].codesize - 1;
   while (p < op + n) {
@@ -154,30 +156,10 @@ static void printcap (Capture *cap, int ident) {
 }
 
 
-/*
-** Print a capture and its nested captures
-*/
-static Capture *printcap2close (Capture *cap, int ident) {
-  Capture *head = cap++;
-  printcap(head, ident);  /* print head capture */
-  while (capinside(head, cap))
-    cap = printcap2close(cap, ident + 2);  /* print nested captures */
-  if (isopencap(head)) {
-    assert(isclosecap(cap));
-    printcap(cap++, ident);  /* print and skip close capture */
-  }
-  return cap;
-}
-
-
-void printcaplist (Capture *cap) {
-  {  /* for debugging, print first a raw list of captures */
-    Capture *c = cap;
-    while (c->index != MAXINDT) { printcap(c, 0); c++; }
-  }
+void printcaplist (Capture *cap, Capture *fin) {
   printf(">======\n");
-  while (!isclosecap(cap))
-    cap = printcap2close(cap, 0);
+  while (cap < fin)
+    printcap(cap++, 0);
   printf("=======\n");
 }
 
@@ -202,7 +184,7 @@ static const char *tagnames[] = {
 };
 
 
-void printtree (TTree *tree, int ident) {
+static void printtree (TTree *tree, int ident) {
   int i;
   int sibs = numsiblings[tree->tag];
   for (i = 0; i < ident; i++) printf(" ");
@@ -273,7 +255,7 @@ void printtree (TTree *tree, int ident) {
 }
 
 
-void printktable (lua_State *L, int idx) {
+static void printktable (lua_State *L, int idx) {
   int n, i;
   lua_getuservalue(L, idx);
   if (lua_isnil(L, -1))  /* no ktable? */
@@ -294,5 +276,36 @@ void printktable (lua_State *L, int idx) {
 }
 
 /* }====================================================== */
+
+
+static int lp_printtree (lua_State *L) {
+  Pattern *p = (Pattern *)luaL_checkudata(L, 1, PATTERN_T);
+  if (lua_toboolean(L, 2))
+    prepcompile(L, p, 1);
+  printktable(L, 1);
+  printtree(p->tree, 0);
+  return 0;
+}
+
+
+static int lp_printcode (lua_State *L) {
+  Pattern *p = (Pattern *)luaL_checkudata(L, 1, PATTERN_T);
+  printktable(L, 1);
+  if (p->code == NULL)  /* not compiled yet? */
+    prepcompile(L, p, 1);
+  printpatt(p->code);
+  return 0;
+}
+
+static struct luaL_Reg debugreg[] = {
+  {"ptree", lp_printtree},
+  {"pcode", lp_printcode},
+  {NULL, NULL}
+};
+
+
+void opendebug (lua_State *L) {
+  luaL_setfuncs(L, debugreg, 0);
+}
 
 #endif

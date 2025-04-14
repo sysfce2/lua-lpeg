@@ -1198,35 +1198,11 @@ static TTree *newgrammar (lua_State *L, int arg) {
 /* }====================================================== */
 
 
-static Instruction *prepcompile (lua_State *L, Pattern *p, int idx) {
+Instruction *prepcompile (lua_State *L, Pattern *p, int idx) {
   lua_getuservalue(L, idx);  /* push 'ktable' (may be used by 'finalfix') */
   finalfix(L, 0, NULL, p->tree);
   lua_pop(L, 1);  /* remove 'ktable' */
   return compile(L, p, getsize(L, idx));
-}
-
-
-static int lp_printtree (lua_State *L) {
-  TTree *tree = getpatt(L, 1, NULL);
-  int c = lua_toboolean(L, 2);
-  if (c) {
-    lua_getuservalue(L, 1);  /* push 'ktable' (may be used by 'finalfix') */
-    finalfix(L, 0, NULL, tree);
-    lua_pop(L, 1);  /* remove 'ktable' */
-  }
-  printktable(L, 1);
-  printtree(tree, 0);
-  return 0;
-}
-
-
-static int lp_printcode (lua_State *L) {
-  Pattern *p = getpattern(L, 1);
-  printktable(L, 1);
-  if (p->code == NULL)  /* not compiled yet? */
-    prepcompile(L, p, 1);
-  printpatt(p->code);
-  return 0;
 }
 
 
@@ -1349,8 +1325,6 @@ static int lp_locale (lua_State *L) {
 
 
 static struct luaL_Reg pattreg[] = {
-  {"ptree", lp_printtree},
-  {"pcode", lp_printcode},
   {"match", lp_match},
   {"B", lp_behind},
   {"V", lp_V},
@@ -1397,6 +1371,7 @@ int luaopen_lpeg (lua_State *L) {
   lua_setfield(L, LUA_REGISTRYINDEX, MAXSTACKIDX);
   luaL_setfuncs(L, metareg, 0);
   luaL_newlib(L, pattreg);
+  opendebug(L);
   lua_pushvalue(L, -1);
   lua_setfield(L, -3, "__index");
   lua_pushliteral(L, "LPeg " VERSION);

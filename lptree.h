@@ -85,9 +85,7 @@ extern const byte numsiblings[];
 #define sib2(t)         ((t) + (t)->u.ps)
 
 
-
-
-
+union Instruction *prepcompile (lua_State *L, Pattern *p, int idx);
 
 #endif
 
