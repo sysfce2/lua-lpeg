@@ -278,10 +278,16 @@ static void printktable (lua_State *L, int idx) {
 /* }====================================================== */
 
 
-static int lp_printtree (lua_State *L) {
+static Pattern * getp (lua_State *L, int compile) {
   Pattern *p = (Pattern *)luaL_checkudata(L, 1, PATTERN_T);
-  if (lua_toboolean(L, 2))
+  if (compile && p->code == NULL)  /* not compiled yet? */
     prepcompile(L, p, 1);
+  return p;
+}
+
+
+static int lp_printtree (lua_State *L) {
+  Pattern *p = getp(L, lua_toboolean(L, 2));
   printktable(L, 1);
   printtree(p->tree, 0);
   return 0;
@@ -289,17 +295,24 @@ static int lp_printtree (lua_State *L) {
 
 
 static int lp_printcode (lua_State *L) {
-  Pattern *p = (Pattern *)luaL_checkudata(L, 1, PATTERN_T);
+  Pattern *p = getp(L, 1);
   printktable(L, 1);
-  if (p->code == NULL)  /* not compiled yet? */
-    prepcompile(L, p, 1);
   printpatt(p->code);
   return 0;
 }
 
+
+static int lp_nullable (lua_State *L) {
+  Pattern *p = getp(L, 0);
+  lua_pushboolean(L, nullable(p->tree));
+  return 1;
+}
+
+
 static struct luaL_Reg debugreg[] = {
   {"ptree", lp_printtree},
   {"pcode", lp_printcode},
+  {"nullable", lp_nullable},
   {NULL, NULL}
 };
 

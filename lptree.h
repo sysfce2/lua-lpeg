@@ -63,6 +63,13 @@ typedef struct TTree {
 } TTree;
 
 
+/* Status of a Rule */
+#define RLNOTVISITED	0	/* rule not visited yet */
+#define RLBEINGVISITED	1	/* rule is being visited */
+#define RLNULL		2	/* rule was visited and is nullable */
+#define RLNONNULL	3	/* rule was visited and is not nullable */
+
+
 /* access to charset */
 #define treebuffer(t)      ((t)->u.set.bitmap)
 

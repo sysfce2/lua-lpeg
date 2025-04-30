@@ -1016,13 +1016,6 @@ static int collectrules (lua_State *L, int arg, int *totalsize) {
 }
 
 
-/* Status of a Rule */
-#define RLNOTVISITED	0	/* rule not visited yet */
-#define RLBEINGVISITED	1	/* rule is being visited */
-#define RLNULL		2	/* rule was visited and is nullable */
-#define RLNONNULL	3	/* rule was visited and is not nullable */
-
-
 static void buildgrammar (lua_State *L, TTree *grammar, int frule, int n) {
   int i;
   TTree *nd = sib1(grammar);  /* auxiliary pointer to traverse the tree */

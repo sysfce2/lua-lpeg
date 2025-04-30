@@ -1662,6 +1662,50 @@ errmsg("x <- 'a'  x <- 'b'", 'already defined')
 errmsg("'a' -", "near '-'")
 
 
+if m.nullable then
+  print "testing nullable predicate"
+
+
+  local bg = re.compile[[
+    A31 <- A30 A30
+    A30 <- A29 A29
+    A29 <- A28 A28
+    A28 <- A27 A27
+    A27 <- A26 A26
+    A26 <- A25 A25
+    A25 <- A24 A24
+    A24 <- A23 A23
+    A23 <- A22 A22
+    A22 <- A21 A21
+    A21 <- A20 A20
+    A20 <- A19 A19
+    A19 <- A18 A18
+    A18 <- A17 A17
+    A17 <- A16 A16
+    A16 <- A15 A15
+    A15 <- A14 A14
+    A14 <- A13 A13
+    A13 <- A12 A12
+    A12 <- A11 A11
+    A11 <- A10 A10
+    A10 <- A9 A9
+    A9 <- A8 A8
+    A8 <- A7 A7
+    A7 <- A6 A6
+    A6 <- A5 A5
+    A5 <- A4 A4
+    A4 <- A3 A3
+    A3 <- A2 A2
+    A2 <- A1 A1
+    A1 <- ""
+  ]]
+
+  assert(bg:nullable())
+  assert((bg * bg):nullable())
+  assert(not (bg * bg * "a"):nullable())
+  assert(m.P(-1):nullable())
+end
+
 print"OK"
 
 

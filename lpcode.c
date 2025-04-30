@@ -139,7 +139,12 @@ int checkaux (TTree *tree, int pred) {
       if (checkaux(sib2(tree), pred)) return 1;
       /* else return checkaux(sib1(tree), pred); */
       tree = sib1(tree); goto tailcall;
-    case TCapture: case TGrammar: case TRule: case TXInfo:
+    case TRule:
+      assert(tree->cap == RLNULL || tree->cap == RLNONNULL);
+      if (pred == PEnullable)
+        return (tree->cap == RLNULL);
+    /* else */ /* FALLTHROUGH */
+    case TCapture: case TGrammar: case TXInfo:
       /* return checkaux(sib1(tree), pred); */
       tree = sib1(tree); goto tailcall;
     case TCall:  /* return checkaux(sib2(tree), pred); */
